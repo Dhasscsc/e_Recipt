@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>தாஸ் சேவை மையம் - ஒப்புகை & கட்டண இரசீது டூல்</title>
+    <title>தாஸ் பொது சேவை மையம் - ஒப்புகை & கட்டண இரசீது டூல்</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;600;700&display=swap');
 
@@ -343,6 +343,7 @@
     <div class="tab-buttons">
         <button class="tab-btn active" onclick="switchTab('ack')">1. ஒப்புகைச்சீட்டு (Acknowledgement)</button>
         <button class="tab-btn" onclick="switchTab('pay')">2. கட்டண இரசீது (Payment Invoice)</button>
+        <button class="tab-btn" onclick="switchTab('history')">3. ரசீது வரலாறு (History)</button>
     </div>
 
     <!-- TAB 1: ஒப்புகைச்சீட்டு பகுதி -->
@@ -392,7 +393,7 @@
         <!-- அச்சிடப்படும் ஒப்புகைச்சீட்டு -->
         <div class="receipt-card">
             <div class="receipt-header">
-                <h1 class="center-title">DHASS PUBLIC SERVICE CENTER</h1>
+                <h1 class="center-title">தாஸ் பொது சேவை மையம்</h1>
                 <div class="center-subtitle">
                     147எ, கிரேட் காட்டன் ரோடு, மத்திய பாகம் காவல் நிலையம் அருகில், தூத்துக்குடி - 628001<br>
                     செல்: 98432 32324 / 88702 32332
@@ -441,28 +442,6 @@
             <button class="btn-print" onclick="window.print()">ஒப்புகைச்சீட்டு பிரிண்ட் செய்ய</button>
         </div>
 
-        <!-- ஒப்புகை வரலாற்று பதிவு -->
-        <div class="history-section" style="margin-top:20px;">
-            <h2>ஒப்புகைச்சீட்டு பதிவுகள் (Daily History)</h2>
-            <div class="filter-box">
-                <label><b>தேதி தேர்வு செய்க:</b></label>
-                <input type="date" id="filterAckDate" onchange="renderAckLogs()">
-                <button onclick="document.getElementById('filterAckDate').value=''; renderAckLogs();">அனைத்தும்</button>
-            </div>
-            <table class="log-table">
-                <thead>
-                    <tr>
-                        <th>நாள் & நேரம்</th>
-                        <th>பெயர்</th>
-                        <th>செல் எண்</th>
-                        <th>சேவை</th>
-                        <th>விண்ணப்ப எண்</th>
-                        <th>செயல்பாடு</th>
-                    </tr>
-                </thead>
-                <tbody id="ackLogBody"></tbody>
-            </table>
-        </div>
     </div>
 
     <!-- TAB 2: கட்டண இரசீது பகுதி -->
@@ -512,7 +491,7 @@
         <!-- அச்சிடப்படும் கட்டண இரசீது -->
         <div class="receipt-card">
             <div class="receipt-header">
-                <h1 class="center-title">DHASS PUBLIC SERVICE CENTER</h1>
+                <h1 class="center-title">தாஸ் பொது சேவை மையம்</h1>
                 <div class="center-subtitle">
                     147எ, கிரேட் காட்டன் ரோடு, மத்திய பாகம் காவல் நிலையம் அருகில், தூத்துக்குடி - 628001<br>
                     செல்: 98432 32324 / 88702 32332
@@ -570,6 +549,33 @@
 
         <div class="action-buttons">
             <button class="btn-print" onclick="window.print()">கட்டண இரசீது பிரிண்ட் செய்ய</button>
+        </div>
+
+    </div>
+
+    <!-- TAB 3: ரசீது வரலாறு -->
+    <div id="tab-history" class="tab-content">
+        <!-- ஒப்புகை வரலாற்று பதிவு -->
+        <div class="history-section" style="margin-top:0;">
+            <h2>ஒப்புகைச்சீட்டு பதிவுகள் (Daily History)</h2>
+            <div class="filter-box">
+                <label><b>தேதி தேர்வு செய்க:</b></label>
+                <input type="date" id="filterAckDate" onchange="renderAckLogs()">
+                <button onclick="document.getElementById('filterAckDate').value=''; renderAckLogs();">அனைத்தும்</button>
+            </div>
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        <th>நாள் & நேரம்</th>
+                        <th>பெயர்</th>
+                        <th>செல் எண்</th>
+                        <th>சேவை</th>
+                        <th>விண்ணப்ப எண்</th>
+                        <th>செயல்பாடு</th>
+                    </tr>
+                </thead>
+                <tbody id="ackLogBody"></tbody>
+            </table>
         </div>
 
         <!-- கட்டண வரலாற்று பதிவு -->
@@ -724,16 +730,10 @@
     };
 
     function switchTab(tab) {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-        if(tab === 'ack') {
-            document.querySelectorAll('.tab-btn')[0].classList.add('active');
-            document.getElementById('tab-ack').classList.add('active');
-        } else {
-            document.querySelectorAll('.tab-btn')[1].classList.add('active');
-            document.getElementById('tab-pay').classList.add('active');
-        }
+        const tabs = ['ack', 'pay', 'history'];
+        document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + tab));
+        if (tab === 'history') { renderAckLogs(); renderPayLogs(); }
     }
 
     function setDefaultDateTime() {
@@ -797,12 +797,15 @@
         document.getElementById('ackRefNo').value = item.refNo;
         document.getElementById('ackEditIndex').value = index;
         document.getElementById('ackFormTitle').innerText = "ஒப்புகைச்சீட்டு விவரங்களை திருத்துதல்";
+        switchTab('ack');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function printAck(index) {
         displayAckCard(ackLogs[index]);
+        switchTab('ack');
         window.print();
+        switchTab('history');
     }
 
     function renderAckLogs() {
@@ -903,12 +906,15 @@
         document.getElementById('payAmount').value = item.amount;
         document.getElementById('payEditIndex').value = index;
         document.getElementById('payFormTitle').innerText = "கட்டண இரசீது விவரங்களை திருத்துதல்";
+        switchTab('pay');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function printPay(index) {
         displayPayCard(payLogs[index]);
+        switchTab('pay');
         window.print();
+        switchTab('history');
     }
 
     function renderPayLogs() {
