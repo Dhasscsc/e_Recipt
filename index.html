@@ -329,6 +329,11 @@
         .sub-content { display: none; }
         .sub-content.active { display: block; }
         .svc-line { white-space: nowrap; }
+        .paid-stamp { display: none; border: 3px double #15803d; color: #15803d; text-align: center; padding: 12px; margin-bottom: 15px; font-size: 20px; font-weight: 800; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .paid-stamp small { display: block; font-size: 13px; font-weight: 600; margin-top: 4px; color: #000; }
+        .badge-paid { background: #dcfce7; color: #166534; border: 1px solid #86efac; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: bold; white-space: nowrap; }
+        .badge-due { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: bold; white-space: nowrap; }
+        .btn-tbl-paid { background-color: #16a34a; color: white; }
         /* Print Settings */
         @media print {
             body {
@@ -479,6 +484,13 @@
                     <label>நாள் & நேரம்</label>
                     <input type="datetime-local" id="payDateTime">
                 </div>
+                <div class="form-group">
+                    <label>கட்டண நிலை</label>
+                    <select id="payStatus">
+                        <option value="due">செலுத்த வேண்டும் (QR உடன்)</option>
+                        <option value="paid">நேரில் செலுத்தப்பட்டது ✔</option>
+                    </select>
+                </div>
             </div>
 
             <div class="items-box">
@@ -498,10 +510,10 @@
                     147எ, கிரேட் காட்டன் ரோடு, மத்திய பாகம் காவல் நிலையம் அருகில், தூத்துக்குடி - 628001<br>
                     செல்: 98432 32324 / 88702 32332
                 </div>
-                <h2 class="receipt-type-title">கட்டணக் கோரிக்கை இரசீது</h2>
+                <h2 class="receipt-type-title" id="outPayTitle">கட்டணக் கோரிக்கை இரசீது</h2>
             </div>
 
-            <div class="center-info">
+            <div class="center-info" id="outPayIntro">
                 கீழ்கண்ட சேவைக்கான ஆவணங்கள் ஏற்றுக்கொள்ளப்பட்டது. சேவைக் கட்டணத்தைச் செலுத்துமாறு கேட்டுக்கொள்ளப்படுகிறீர்கள்.
             </div>
 
@@ -531,13 +543,15 @@
                 <tbody id="outPayItems"></tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="2" style="text-align:right;">செலுத்த வேண்டிய மொத்த கட்டணம்</td>
+                        <td colspan="2" style="text-align:right;" id="outPayTotalLabel">செலுத்த வேண்டிய மொத்த கட்டணம்</td>
                         <td id="outPayAmount" class="amount-bold" style="text-align:right;">₹ 0.00</td>
                     </tr>
                 </tfoot>
             </table>
 
-            <div class="payment-qr-container">
+            <div class="paid-stamp" id="outPaidStamp">✔ கட்டணம் நேரில் செலுத்தப்பட்டது<small>மேற்கண்ட தொகை முழுமையாகப் பெறப்பட்டது</small></div>
+
+            <div class="payment-qr-container" id="payQrBox">
                 <div class="payment-qr-cell qr-box">
                     <img id="outQrCode" src="" alt="UPI QR Code">
                 </div>
@@ -549,7 +563,7 @@
                 </div>
             </div>
 
-            <div class="declaration">
+            <div class="declaration" id="outPayNote">
                 குறிப்பு: கட்டணம் செலுத்திய பின் உங்கள் வேலை உடனுக்குடன் செயல்படுத்தப்படும்.
             </div>
 
@@ -615,6 +629,7 @@
                         <th>செல் எண்</th>
                         <th>சேவைகள்</th>
                         <th>மொத்தம் (₹)</th>
+                        <th>நிலை</th>
                         <th>செயல்பாடு</th>
                     </tr>
                 </thead>
@@ -1005,6 +1020,7 @@
             name, mobile,
             items: items,
             amount: total,
+            status: document.getElementById('payStatus').value,
             // பழைய வடிவத்துடன் பொருந்துவதற்காக (Sheet/Sync)
             serviceType: items[0].serviceType,
             serviceName: items.map(function (it) { return it.serviceName; }).filter(Boolean).join(', ')
@@ -1036,6 +1052,25 @@
         }).join('');
         document.getElementById('outPayAmount').innerText = '₹ ' + fmtAmt(total);
         updatePayQr(total);
+
+        const paid = rec.status === 'paid';
+        document.getElementById('outPayTitle').innerText = paid ? 'கட்டணப் பெறுதல் இரசீது' : 'கட்டணக் கோரிக்கை இரசீது';
+        document.getElementById('outPayIntro').innerText = paid
+            ? 'கீழ்கண்ட சேவைகளுக்கான ஆவணங்கள் ஏற்றுக்கொள்ளப்பட்டது. சேவைக் கட்டணம் நேரில் பெறப்பட்டுக்கொள்ளப்பட்டது.'
+            : 'கீழ்கண்ட சேவைக்கான ஆவணங்கள் ஏற்றுக்கொள்ளப்பட்டது. சேவைக் கட்டணத்தைச் செலுத்துமாறு கேட்டுக்கொள்ளப்படுகிறீர்கள்.';
+        document.getElementById('outPayTotalLabel').innerText = paid ? 'செலுத்தப்பட்ட மொத்த கட்டணம்' : 'செலுத்த வேண்டிய மொத்த கட்டணம்';
+        document.getElementById('outPaidStamp').style.display = paid ? 'block' : 'none';
+        document.getElementById('payQrBox').style.display = paid ? 'none' : 'table';
+        document.getElementById('outPayNote').innerText = paid
+            ? 'குறிப்பு: கட்டணம் முழுமையாகப் பெறப்பட்டது. உங்கள் வேலை உடனுக்குடன் செயல்படுத்தப்படும். நன்றி!'
+            : 'குறிப்பு: கட்டணம் செலுத்திய பின் உங்கள் வேலை உடனுக்குடன் செயல்படுத்தப்படும்.';
+    }
+
+    function markPayPaid(index) {
+        if (!confirm('இந்தக் கட்டணம் நேரில் செலுத்தப்பட்டதாகக் குறிக்கவா?')) return;
+        payLogs[index].status = 'paid';
+        localStorage.setItem('dhass_pay_logs', JSON.stringify(payLogs));
+        renderPayLogs();
     }
 
     function editPay(index) {
@@ -1044,6 +1079,7 @@
         document.getElementById('payMobile').value = item.mobile;
         document.getElementById('payItemsWrap').innerHTML = '';
         getPayItems(item).forEach(function (it) { addPayItem(it); });
+        document.getElementById('payStatus').value = item.status === 'paid' ? 'paid' : 'due';
         document.getElementById('payEditIndex').value = index;
         document.getElementById('payFormTitle').innerText = "கட்டண இரசீது விவரங்களை திருத்துதல்";
         switchTab('pay');
@@ -1066,7 +1102,7 @@
         const filtered = filterDate ? payLogs.filter(r => r.dateOnly === filterDate) : payLogs;
 
         if(filtered.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">பதிவுகள் எதுவுமில்லை</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">பதிவுகள் எதுவுமில்லை</td></tr>';
             return;
         }
 
@@ -1079,7 +1115,9 @@
                 <td>${item.mobile}</td>
                 <td>${getPayItems(item).map(it => `<div class="svc-line">${esc(it.serviceType)}${it.serviceName ? ' - ' + esc(it.serviceName) : ''} <small>(₹ ${fmtAmt(it.amount)})</small></div>`).join('')}</td>
                 <td><b style="color:#b91c1c;">₹ ${fmtAmt(item.amount)}</b></td>
+                <td>${item.status === 'paid' ? '<span class="badge-paid">✔ செலுத்தப்பட்டது</span>' : '<span class="badge-due">நிலுவை</span>'}</td>
                 <td>
+                    ${item.status === 'paid' ? '' : `<button class="btn-tbl-action btn-tbl-paid" onclick="markPayPaid(${originalIndex})">செலுத்தினார்</button>`}
                     <button class="btn-tbl-action btn-tbl-edit" onclick="editPay(${originalIndex})">திருத்து</button>
                     <button class="btn-tbl-action btn-tbl-print" onclick="printPay(${originalIndex})">பிரிண்ட்</button>
                 </td>
@@ -1093,6 +1131,7 @@
         document.getElementById('payMobile').value = '';
         document.getElementById('payItemsWrap').innerHTML = '';
         addPayItem();
+        document.getElementById('payStatus').value = 'due';
         setDefaultDateTime();
     }
 </script>
