@@ -775,6 +775,27 @@
         if (tab === 'history') { renderAckLogs(); renderPayLogs(); }
     }
 
+    /* ---------- பிரிண்ட் / PDF கோப்புப் பெயர் = வாடிக்கையாளர் பெயர் ---------- */
+    const ORIGINAL_TITLE = document.title;
+    let shownAckName = '';
+    let shownPayName = '';
+
+    function safeFileName(t) {
+        return String(t || '').replace(/[\\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    window.addEventListener('beforeprint', function () {
+        const activeAck = document.getElementById('tab-ack').classList.contains('active');
+        const activePay = document.getElementById('tab-pay').classList.contains('active');
+        let base = '';
+        if (activeAck) base = safeFileName(shownAckName) + (shownAckName ? ' - ஒப்புகைச்சீட்டு' : '');
+        else if (activePay) base = safeFileName(shownPayName) + (shownPayName ? ' - கட்டண இரசீது' : '');
+        if (base) document.title = base;
+    });
+    window.addEventListener('afterprint', function () {
+        document.title = ORIGINAL_TITLE;
+    });
+
     function switchHistTab(t) {
         ['ack', 'pay'].forEach(function (k) {
             document.getElementById('subBtn-' + k).classList.toggle('active', k === t);
@@ -867,6 +888,7 @@
     }
 
     function displayAckCard(rec) {
+        shownAckName = rec.name;
         document.getElementById('outAckName').innerText = rec.name;
         document.getElementById('outAckMobile').innerText = rec.mobile || '-';
         document.getElementById('outAckDateTime').innerText = rec.dateTime;
@@ -1041,6 +1063,7 @@
     }
 
     function displayPayCard(rec) {
+        shownPayName = rec.name;
         const items = getPayItems(rec);
         const total = items.reduce(function (sum, it) { return sum + (parseFloat(it.amount) || 0); }, 0);
         document.getElementById('outPayName').innerText = rec.name;
