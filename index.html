@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>தாஸ் பொது சேவை மையம் - ஒப்புகை & கட்டண இரசீது டூல்</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Mukta+Malar:wght@400;600;700&display=swap');
 
@@ -334,6 +335,14 @@
         .badge-paid { background: #dcfce7; color: #166534; border: 1px solid #86efac; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: bold; white-space: nowrap; }
         .badge-due { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: bold; white-space: nowrap; }
         .btn-tbl-paid { background-color: #16a34a; color: white; }
+        .action-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+        .btn-img { background-color: #7c3aed; color: white; border: none; padding: 10px 22px; font-size: 15px; font-weight: bold; border-radius: 4px; cursor: pointer; font-family: inherit; }
+        .btn-wa { background-color: #16a34a; color: white; border: none; padding: 10px 22px; font-size: 15px; font-weight: bold; border-radius: 4px; cursor: pointer; font-family: inherit; }
+        .btn-wa-text { background-color: #0f766e; color: white; border: none; padding: 10px 22px; font-size: 15px; font-weight: bold; border-radius: 4px; cursor: pointer; font-family: inherit; }
+        .btn-tbl-img { background-color: #7c3aed; color: white; }
+        .btn-tbl-wa { background-color: #16a34a; color: white; }
+        #toast { position: fixed; left: 50%; bottom: 25px; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 14px; z-index: 9999; display: none; max-width: 90%; text-align: center; }
+        @media print { #toast { display: none !important; } }
         /* Print Settings */
         @media print {
             body {
@@ -367,6 +376,7 @@
 </head>
 <body>
 
+<div id="toast"></div>
 <div class="container">
     <div class="sync-bar">
         <span id="syncStatus">☁️ Sync அமைக்கப்படவில்லை</span>
@@ -410,7 +420,7 @@
         </div>
 
         <!-- அச்சிடப்படும் ஒப்புகைச்சீட்டு -->
-        <div class="receipt-card">
+        <div class="receipt-card" id="ackCard">
             <div class="receipt-header">
                 <h1 class="center-title">தாஸ் பொது சேவை மையம்</h1>
                 <div class="center-subtitle">
@@ -461,7 +471,10 @@
         </div>
 
         <div class="action-buttons">
-            <button class="btn-print" onclick="window.print()">ஒப்புகைச்சீட்டு பிரிண்ட் செய்ய</button>
+            <button class="btn-print" onclick="window.print()">🖨️ பிரிண்ட் செய்ய</button>
+            <button class="btn-img" onclick="downloadReceiptImage('ack')">🖼️ இமேஜ் டவுண்லோடு</button>
+            <button class="btn-wa" onclick="shareReceiptWhatsApp('ack')">📲 இமேஜ் + வாட்ஸ்அப்</button>
+            <button class="btn-wa-text" onclick="sendReceiptWhatsAppText('ack')">💬 வாட்ஸ்அப் செய்தி</button>
         </div>
 
     </div>
@@ -503,7 +516,7 @@
         </div>
 
         <!-- அச்சிடப்படும் கட்டண இரசீது -->
-        <div class="receipt-card">
+        <div class="receipt-card" id="payCard">
             <div class="receipt-header">
                 <h1 class="center-title">தாஸ் பொது சேவை மையம்</h1>
                 <div class="center-subtitle">
@@ -574,7 +587,10 @@
         </div>
 
         <div class="action-buttons">
-            <button class="btn-print" onclick="window.print()">கட்டண இரசீது பிரிண்ட் செய்ய</button>
+            <button class="btn-print" onclick="window.print()">🖨️ பிரிண்ட் செய்ய</button>
+            <button class="btn-img" onclick="downloadReceiptImage('pay')">🖼️ இமேஜ் டவுண்லோடு</button>
+            <button class="btn-wa" onclick="shareReceiptWhatsApp('pay')">📲 இமேஜ் + வாட்ஸ்அப்</button>
+            <button class="btn-wa-text" onclick="sendReceiptWhatsAppText('pay')">💬 வாட்ஸ்அப் செய்தி</button>
         </div>
 
     </div>
@@ -779,6 +795,8 @@
     const ORIGINAL_TITLE = document.title;
     let shownAckName = '';
     let shownPayName = '';
+    let shownAckRec = null;
+    let shownPayRec = null;
 
     function safeFileName(t) {
         return String(t || '').replace(/[\\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -795,6 +813,129 @@
     window.addEventListener('afterprint', function () {
         document.title = ORIGINAL_TITLE;
     });
+
+    /* ---------- இமேஜ் டவுண்லோடு & வாட்ஸ்அப் ---------- */
+    let toastTimer = null;
+    function toast(msg, ms) {
+        const t = document.getElementById('toast');
+        t.innerText = msg; t.style.display = 'block';
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { t.style.display = 'none'; }, ms || 3000);
+    }
+
+    function getShown(kind) {
+        const rec = kind === 'ack' ? shownAckRec : shownPayRec;
+        if (!rec) { alert('முதலில் இரசீதை உருவாக்கவும் (அல்லது வரலாற்றிலிருந்து தேர்ந்தெடுக்கவும்)!'); return null; }
+        return rec;
+    }
+
+    function imageFileName(kind, rec) {
+        return (safeFileName(rec.name) || 'receipt') + (kind === 'ack' ? ' - ஒப்புகைச்சீட்டு' : ' - கட்டண இரசீது') + '.png';
+    }
+
+    async function receiptBlob(kind) {
+        if (typeof html2canvas === 'undefined') { alert('இமேஜ் வசதிக்கு இணைய இணைப்பு தேவை (html2canvas ஏற்றப்படவில்லை).'); return null; }
+        const src = document.getElementById(kind === 'ack' ? 'ackCard' : 'payCard');
+        const holder = document.createElement('div');
+        holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;background:#fff;';
+        const clone = src.cloneNode(true);
+        clone.removeAttribute('id');
+        clone.querySelectorAll('[id]').forEach(function (e) { e.removeAttribute('id'); });
+        clone.style.margin = '0';
+        clone.style.boxShadow = 'none';
+        holder.appendChild(clone);
+        document.body.appendChild(holder);
+        try {
+            if (document.fonts && document.fonts.ready) await document.fonts.ready;
+            const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            return await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/png'); });
+        } catch (e) {
+            console.error(e);
+            alert('இமேஜ் உருவாக்க முடியவில்லை: ' + e.message);
+            return null;
+        } finally {
+            holder.remove();
+        }
+    }
+
+    function saveBlob(blob, fileName) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = fileName;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    }
+
+    async function downloadReceiptImage(kind) {
+        const rec = getShown(kind); if (!rec) return;
+        toast('இமேஜ் தயாராகிறது...', 6000);
+        const blob = await receiptBlob(kind); if (!blob) return;
+        saveBlob(blob, imageFileName(kind, rec));
+        toast('✔ இமேஜ் டவுண்லோடு ஆனது');
+    }
+
+    function waNumber(mobile) {
+        let d = String(mobile || '').replace(/\D/g, '');
+        if (d.length === 11 && d[0] === '0') d = d.slice(1);
+        if (d.length === 10) d = '91' + d;
+        return d.length >= 11 ? d : '';
+    }
+
+    function waMessage(kind, rec) {
+        const head = 'வணக்கம் ' + rec.name + ',\nதாஸ் பொது சேவை மையம், தூத்துக்குடி.\n';
+        if (kind === 'ack') {
+            const lines = getAckItems(rec).map(function (it, i) {
+                return (i + 1) + '. ' + (it.serviceType || '') + (it.serviceName ? ' - ' + it.serviceName : '') + (it.refNo ? ' (எண்: ' + it.refNo + ')' : '');
+            }).join('\n');
+            return head + 'உங்கள் ஆவண ஒப்புகைச்சீட்டு:\n' + lines + '\nநன்றி!';
+        }
+        const items = getPayItems(rec);
+        const total = items.reduce(function (sum, it) { return sum + (parseFloat(it.amount) || 0); }, 0);
+        const lines = items.map(function (it, i) {
+            return (i + 1) + '. ' + (it.serviceType || '') + (it.serviceName ? ' - ' + it.serviceName : '') + ' - ₹' + fmtAmt(it.amount);
+        }).join('\n');
+        if (rec.status === 'paid') {
+            return head + 'உங்கள் கட்டண இரசீது:\n' + lines + '\nமொத்தம்: ₹' + fmtAmt(total) + '\n✔ கட்டணம் நேரில் பெறப்பட்டது. நன்றி!';
+        }
+        return head + 'உங்கள் சேவைக் கட்டண விவரம்:\n' + lines + '\nசெலுத்த வேண்டிய மொத்தம்: ₹' + fmtAmt(total) + '\nUPI: ' + UPI_ID + '\nநன்றி!';
+    }
+
+    function openWaChat(rec, text) {
+        const num = waNumber(rec.mobile);
+        window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(text), '_blank');
+    }
+
+    function sendReceiptWhatsAppText(kind) {
+        const rec = getShown(kind); if (!rec) return;
+        openWaChat(rec, waMessage(kind, rec));
+    }
+
+    async function shareReceiptWhatsApp(kind) {
+        const rec = getShown(kind); if (!rec) return;
+        toast('இமேஜ் தயாராகிறது...', 6000);
+        const blob = await receiptBlob(kind); if (!blob) return;
+        const fileName = imageFileName(kind, rec);
+        const text = waMessage(kind, rec);
+        const file = new File([blob], fileName, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({ files: [file], text: text });
+                return;
+            } catch (e) {
+                if (e && e.name === 'AbortError') return;
+            }
+        }
+        // கணினி / Share ஆதரவு இல்லாத உலாவி: இமேஜ் டவுண்லோடு + வாட்ஸ்அப் செய்தி
+        saveBlob(blob, fileName);
+        toast('இமேஜ் டவுண்லோடு ஆனது — வாட்ஸ்அப்பில் 📎 மூலம் இணைத்து அனுப்பவும்', 7000);
+        openWaChat(rec, text);
+    }
+
+    // வரலாற்றிலிருந்து
+    function imgAck(i) { displayAckCard(ackLogs[i]); downloadReceiptImage('ack'); }
+    function waAck(i) { displayAckCard(ackLogs[i]); shareReceiptWhatsApp('ack'); }
+    function imgPay(i) { displayPayCard(payLogs[i]); downloadReceiptImage('pay'); }
+    function waPay(i) { displayPayCard(payLogs[i]); shareReceiptWhatsApp('pay'); }
 
     function switchHistTab(t) {
         ['ack', 'pay'].forEach(function (k) {
@@ -888,7 +1029,7 @@
     }
 
     function displayAckCard(rec) {
-        shownAckName = rec.name;
+        shownAckName = rec.name; shownAckRec = rec;
         document.getElementById('outAckName').innerText = rec.name;
         document.getElementById('outAckMobile').innerText = rec.mobile || '-';
         document.getElementById('outAckDateTime').innerText = rec.dateTime;
@@ -942,6 +1083,8 @@
                 <td>
                     <button class="btn-tbl-action btn-tbl-edit" onclick="editAck(${originalIndex})">திருத்து</button>
                     <button class="btn-tbl-action btn-tbl-print" onclick="printAck(${originalIndex})">பிரிண்ட்</button>
+                    <button class="btn-tbl-action btn-tbl-img" onclick="imgAck(${originalIndex})">🖼️ இமேஜ்</button>
+                    <button class="btn-tbl-action btn-tbl-wa" onclick="waAck(${originalIndex})">📲 WhatsApp</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -1063,7 +1206,7 @@
     }
 
     function displayPayCard(rec) {
-        shownPayName = rec.name;
+        shownPayName = rec.name; shownPayRec = rec;
         const items = getPayItems(rec);
         const total = items.reduce(function (sum, it) { return sum + (parseFloat(it.amount) || 0); }, 0);
         document.getElementById('outPayName').innerText = rec.name;
@@ -1143,6 +1286,8 @@
                     ${item.status === 'paid' ? '' : `<button class="btn-tbl-action btn-tbl-paid" onclick="markPayPaid(${originalIndex})">செலுத்தினார்</button>`}
                     <button class="btn-tbl-action btn-tbl-edit" onclick="editPay(${originalIndex})">திருத்து</button>
                     <button class="btn-tbl-action btn-tbl-print" onclick="printPay(${originalIndex})">பிரிண்ட்</button>
+                    <button class="btn-tbl-action btn-tbl-img" onclick="imgPay(${originalIndex})">🖼️ இமேஜ்</button>
+                    <button class="btn-tbl-action btn-tbl-wa" onclick="waPay(${originalIndex})">📲 WhatsApp</button>
                 </td>
             `;
             tbody.appendChild(tr);
