@@ -334,6 +334,23 @@
         .paid-stamp small { display: block; font-size: 13px; font-weight: 600; margin-top: 4px; color: #000; }
         .badge-paid { background: #dcfce7; color: #166534; border: 1px solid #86efac; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: bold; white-space: nowrap; }
         .badge-due { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: bold; white-space: nowrap; }
+        .st-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 15px; }
+        .st-card { background: #fff; border-radius: 8px; padding: 10px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border-top: 4px solid #94a3b8; cursor: pointer; }
+        .st-card b { display: block; font-size: 24px; }
+        .st-card span { font-size: 13px; }
+        .st-card.done { border-top-color: #16a34a; } .st-card.done b { color: #15803d; }
+        .st-card.rejected { border-top-color: #dc2626; } .st-card.rejected b { color: #b91c1c; }
+        .st-card.progress { border-top-color: #f59e0b; } .st-card.progress b { color: #b45309; }
+        .st-card.pending { border-top-color: #2563eb; } .st-card.pending b { color: #1d4ed8; }
+        .st-select { padding: 6px; border-radius: 4px; border: 1px solid #cbd5e1; font-family: inherit; font-size: 13px; font-weight: bold; }
+        .st-select.s-pending { background: #dbeafe; } .st-select.s-progress { background: #fef3c7; }
+        .st-select.s-done { background: #dcfce7; } .st-select.s-rejected { background: #fee2e2; }
+        .st-note { width: 100%; min-width: 120px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: inherit; font-size: 13px; }
+        .days-badge { display: inline-block; margin-top: 3px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 10px; padding: 1px 8px; font-size: 11px; }
+        .st-filter { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+        .st-filter input, .st-filter select { padding: 9px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: inherit; font-size: 14px; }
+        .st-filter input { flex: 1; min-width: 180px; }
+        @media (max-width: 700px) { .st-cards { grid-template-columns: repeat(2, 1fr); } }
         .btn-tbl-del { background-color: #dc2626; color: white; }
         .btn-tbl-paid { background-color: #16a34a; color: white; }
         .action-buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
@@ -390,6 +407,7 @@
         <button class="tab-btn active" onclick="switchTab('ack')">1. ஒப்புகைச்சீட்டு (Acknowledgement)</button>
         <button class="tab-btn" onclick="switchTab('pay')">2. கட்டண இரசீது (Payment Invoice)</button>
         <button class="tab-btn" onclick="switchTab('history')">3. ரசீது வரலாறு (History)</button>
+        <button class="tab-btn" onclick="switchTab('status')">4. சேவை நிலை (Service Status)</button>
     </div>
 
     <!-- TAB 1: ஒப்புகைச்சீட்டு பகுதி -->
@@ -596,6 +614,46 @@
 
     </div>
 
+    <!-- TAB 4: சேவை நிலை -->
+    <div id="tab-status" class="tab-content">
+        <div class="input-form" style="border-radius:8px;">
+            <h2 id="stFormTitle">சேவை நிலை பதிவு (ஒப்புகைச்சீட்டிலிருந்து தானாகச் சேரும்)</h2>
+            <input type="hidden" id="stEditId" value="">
+            <div class="form-grid">
+                <div class="form-group"><label>பெயர் *</label><input type="text" id="stName" placeholder="வாடிக்கையாளர் பெயர்"></div>
+                <div class="form-group"><label>செல் எண்</label><input type="tel" id="stMobile" placeholder="கைபேசி எண்"></div>
+                <div class="form-group"><label>சேவை வகை</label><select id="stType"></select></div>
+                <div class="form-group"><label>சேவை பெயர் *</label><input type="text" id="stService" placeholder="சேவை பெயர்"></div>
+                <div class="form-group"><label>குறிப்பு எண்</label><input type="text" id="stRef" placeholder="விண்ணப்ப / குறிப்பு எண்"></div>
+                <div class="form-group"><label>சேவை நிலை</label><select id="stStatus"></select></div>
+                <div class="form-group"><label>குறிப்பு</label><input type="text" id="stNote" placeholder="கூடுதல் விவரம்"></div>
+            </div>
+            <button class="btn-submit" onclick="saveStatusManual()">சேமி / புதுப்பி</button>
+            <button class="btn-submit" style="background:#64748b;margin-top:8px;" onclick="clearStatusForm()">Clear</button>
+        </div>
+
+        <div class="st-cards" id="stCards"></div>
+
+        <div class="history-section" style="margin-top:0;">
+            <h2>சேவை நிலை பட்டியல்</h2>
+            <div class="st-filter">
+                <input type="text" id="stSearch" placeholder="🔍 பெயர் / செல் / சேவை / குறிப்பு எண் மூலம் தேடுக..." oninput="renderStatus()">
+                <select id="stFilter" onchange="renderStatus()"></select>
+            </div>
+            <div style="overflow-x:auto;">
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        <th>#</th><th>பெயர் / செல்</th><th>சேவை</th><th>குறிப்பு எண்</th>
+                        <th>நிலை</th><th>குறிப்பு</th><th>பதிவு தேதி</th><th>செயல்பாடு</th>
+                    </tr>
+                </thead>
+                <tbody id="stBody"></tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
     <!-- TAB 3: ரசீது வரலாறு -->
     <div id="tab-history" class="tab-content">
         <div class="sub-tabs">
@@ -766,8 +824,10 @@
 
     let ackLogs = JSON.parse(localStorage.getItem('dhass_ack_logs')) || [];
     let payLogs = JSON.parse(localStorage.getItem('dhass_pay_logs')) || [];
+    let statusLogs = JSON.parse(localStorage.getItem('dhass_status_logs')) || [];
 
     window.onload = function() {
+        initStatusUi();
         setDefaultDateTime();
         addPayItem();
         addAckItem();
@@ -786,10 +846,11 @@
     };
 
     function switchTab(tab) {
-        const tabs = ['ack', 'pay', 'history'];
+        const tabs = ['ack', 'pay', 'history', 'status'];
         document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + tab));
         if (tab === 'history') { renderAckLogs(); renderPayLogs(); }
+        if (tab === 'status') { renderStatus(); }
     }
 
     /* ---------- பிரிண்ட் / PDF கோப்புப் பெயர் = வாடிக்கையாளர் பெயர் ---------- */
@@ -932,6 +993,199 @@
         openWaChat(rec, text);
     }
 
+    /* ---------- சேவை நிலை (Service Status) ---------- */
+    const STATUS_OPTS = [
+        ['pending', '⏳ நிலுவையில்'],
+        ['progress', '🔧 செயல்பாட்டில்'],
+        ['done', '✅ முடிந்தது'],
+        ['rejected', '❌ நிராகரிக்கப்பட்டது']
+    ];
+    function statusLabel(v) { const o = STATUS_OPTS.find(function (x) { return x[0] === v; }); return o ? o[1] : v; }
+
+    function saveStatusLogs() {
+        localStorage.setItem('dhass_status_logs', JSON.stringify(statusLogs));
+    }
+
+    function initStatusUi() {
+        document.getElementById('stType').innerHTML = SERVICE_TYPES.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('');
+        document.getElementById('stStatus').innerHTML = STATUS_OPTS.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('');
+        document.getElementById('stFilter').innerHTML = '<option value="">அனைத்து நிலைகளும்</option>' + STATUS_OPTS.map(function (o) { return '<option value="' + o[0] + '">' + o[1] + '</option>'; }).join('');
+    }
+
+    // ஒப்புகைச்சீட்டு சேமிக்கும்போது ஒவ்வொரு சேவைக்கும் நிலைப் பதிவு தானாக உருவாகும்/புதுப்பிக்கப்படும்
+    function syncStatusFromAck(rec) {
+        const items = getAckItems(rec);
+        const now = Date.now();
+        const fresh = [];
+        items.forEach(function (it, i) {
+            const ex = statusLogs.find(function (x) { return x.ackId === rec.id && x.itemIdx === i; });
+            if (ex) {
+                ex.name = rec.name; ex.mobile = rec.mobile;
+                ex.serviceType = it.serviceType; ex.serviceName = it.serviceName; ex.refNo = it.refNo;
+            } else {
+                fresh.push({
+                    id: now + i, ackId: rec.id, itemIdx: i,
+                    name: rec.name, mobile: rec.mobile,
+                    serviceType: it.serviceType, serviceName: it.serviceName, refNo: it.refNo,
+                    status: 'pending', note: '', createdAt: now, doneAt: null
+                });
+            }
+        });
+        statusLogs = fresh.concat(statusLogs);
+        // திருத்தத்தில் நீக்கப்பட்ட சேவை வரிகளுக்கான நிலைப் பதிவுகளை நீக்கு
+        statusLogs = statusLogs.filter(function (x) { return !(x.ackId === rec.id && x.itemIdx >= items.length); });
+        saveStatusLogs();
+    }
+
+    // ஒப்புகை விவரங்களை கட்டண இரசீது படிவத்தில் நிரப்பு
+    function prefillPayFromAck(rec, force) {
+        const editing = parseInt(document.getElementById('payEditIndex').value) >= 0;
+        const hasData = document.getElementById('payName').value.trim() ||
+            readPayItems().length > 0;
+        if (editing && !force) return false;
+        if (hasData && !force) { toast('கட்டணப் படிவத்தில் ஏற்கனவே விவரங்கள் உள்ளன — வரலாற்றில் 💰 பொத்தானால் சேர்க்கலாம்', 5000); return false; }
+        if (hasData && force && !confirm('கட்டண இரசீது படிவத்தில் உள்ள விவரங்கள் மாற்றப்படும். தொடரவா?')) return false;
+        document.getElementById('payEditIndex').value = '-1';
+        document.getElementById('payFormTitle').innerText = 'கட்டண இரசீது (Payment Invoice) உருவாக்குதல்';
+        document.getElementById('payName').value = rec.name;
+        document.getElementById('payMobile').value = rec.mobile || '';
+        document.getElementById('payItemsWrap').innerHTML = '';
+        getAckItems(rec).forEach(function (it) { addPayItem({ serviceType: it.serviceType, serviceName: it.serviceName, amount: 0 }); });
+        document.getElementById('payStatus').value = 'due';
+        setDefaultDateTime();
+        return true;
+    }
+
+    function ackToPay(i) {
+        const rec = ackLogs[i]; if (!rec) return;
+        if (prefillPayFromAck(rec, true)) { switchTab('pay'); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('💰 கட்டண இரசீது படிவத்தில் விவரங்கள் நிரப்பப்பட்டன — தொகையை உள்ளிடவும்', 5000); }
+    }
+
+    function daysText(r) {
+        const end = r.doneAt || Date.now();
+        const d = Math.floor((end - r.createdAt) / 86400000);
+        return d <= 0 ? 'இன்று' : d + ' நாள்';
+    }
+
+    function renderStatus() {
+        // அட்டைகள்
+        const cnt = { pending: 0, progress: 0, done: 0, rejected: 0 };
+        statusLogs.forEach(function (r) { if (cnt[r.status] !== undefined) cnt[r.status]++; });
+        const cur = document.getElementById('stFilter').value;
+        document.getElementById('stCards').innerHTML =
+            '<div class="st-card done" onclick="setStFilter(\'done\')"><span>✅ முடிந்தவை</span><b>' + cnt.done + '</b></div>' +
+            '<div class="st-card rejected" onclick="setStFilter(\'rejected\')"><span>❌ நிராகரிக்கப்பட்டவை</span><b>' + cnt.rejected + '</b></div>' +
+            '<div class="st-card progress" onclick="setStFilter(\'progress\')"><span>🔧 செயல்பாட்டில்</span><b>' + cnt.progress + '</b></div>' +
+            '<div class="st-card pending" onclick="setStFilter(\'pending\')"><span>⏳ நிலுவையில்</span><b>' + cnt.pending + '</b></div>' +
+            '<div class="st-card" onclick="setStFilter(\'\')"><span>📋 மொத்தம்</span><b>' + statusLogs.length + '</b></div>';
+
+        const q = document.getElementById('stSearch').value.trim().toLowerCase();
+        const rows = statusLogs.filter(function (r) {
+            if (cur && r.status !== cur) return false;
+            if (!q) return true;
+            return [r.name, r.mobile, r.serviceType, r.serviceName, r.refNo, r.note].join(' ').toLowerCase().indexOf(q) !== -1;
+        });
+        const tbody = document.getElementById('stBody');
+        if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">பதிவுகள் எதுவுமில்லை</td></tr>'; return; }
+        tbody.innerHTML = rows.map(function (r, i) {
+            const opts = STATUS_OPTS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === r.status ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
+            return '<tr>' +
+                '<td>' + (i + 1) + '</td>' +
+                '<td><b>' + esc(r.name) + '</b><br><small>' + esc(r.mobile) + '</small></td>' +
+                '<td>' + esc(r.serviceType) + (r.serviceName ? ' - ' + esc(r.serviceName) : '') + '</td>' +
+                '<td><b>' + esc(r.refNo) + '</b></td>' +
+                '<td><select class="st-select s-' + r.status + '" onchange="setStatusValue(' + r.id + ', this.value)">' + opts + '</select></td>' +
+                '<td><input class="st-note" type="text" value="' + esc(r.note) + '" placeholder="குறிப்பு" onchange="setStatusNote(' + r.id + ', this.value)"></td>' +
+                '<td>' + new Date(r.createdAt).toLocaleString('ta-IN') + '<br><span class="days-badge">🕒 ' + daysText(r) + '</span></td>' +
+                '<td>' +
+                    '<button class="btn-tbl-action btn-tbl-edit" onclick="editStatus(' + r.id + ')">திருத்து</button> ' +
+                    '<button class="btn-tbl-action btn-tbl-wa" onclick="waStatus(' + r.id + ')">📲 WhatsApp</button> ' +
+                    '<button class="btn-tbl-action btn-tbl-del" onclick="deleteStatus(' + r.id + ')">🗑️</button>' +
+                '</td></tr>';
+        }).join('');
+    }
+
+    function setStFilter(v) { document.getElementById('stFilter').value = v; renderStatus(); }
+
+    function setStatusValue(id, v) {
+        const r = statusLogs.find(function (x) { return x.id === id; }); if (!r) return;
+        r.status = v;
+        r.doneAt = (v === 'done' || v === 'rejected') ? Date.now() : null;
+        saveStatusLogs(); renderStatus();
+    }
+
+    function setStatusNote(id, v) {
+        const r = statusLogs.find(function (x) { return x.id === id; }); if (!r) return;
+        r.note = v.trim(); saveStatusLogs();
+    }
+
+    function waStatus(id) {
+        const r = statusLogs.find(function (x) { return x.id === id; }); if (!r) return;
+        const text = 'வணக்கம் ' + r.name + ',\nதாஸ் பொது சேவை மையம், தூத்துக்குடி.\n' +
+            'உங்கள் சேவை: ' + (r.serviceType || '') + (r.serviceName ? ' - ' + r.serviceName : '') + '\n' +
+            (r.refNo ? 'குறிப்பு எண்: ' + r.refNo + '\n' : '') +
+            'நிலை: ' + statusLabel(r.status) + '\n' +
+            (r.note ? 'குறிப்பு: ' + r.note + '\n' : '') + 'நன்றி!';
+        openWaChat(r, text);
+    }
+
+    function editStatus(id) {
+        const r = statusLogs.find(function (x) { return x.id === id; }); if (!r) return;
+        document.getElementById('stEditId').value = String(id);
+        document.getElementById('stName').value = r.name;
+        document.getElementById('stMobile').value = r.mobile || '';
+        document.getElementById('stType').value = r.serviceType || SERVICE_TYPES[0];
+        document.getElementById('stService').value = r.serviceName || '';
+        document.getElementById('stRef').value = r.refNo || '';
+        document.getElementById('stStatus').value = r.status;
+        document.getElementById('stNote').value = r.note || '';
+        document.getElementById('stFormTitle').innerText = 'சேவை நிலை பதிவைத் திருத்துதல்';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function clearStatusForm() {
+        ['stName', 'stMobile', 'stService', 'stRef', 'stNote'].forEach(function (k) { document.getElementById(k).value = ''; });
+        document.getElementById('stType').selectedIndex = 0;
+        document.getElementById('stStatus').value = 'pending';
+        document.getElementById('stEditId').value = '';
+        document.getElementById('stFormTitle').innerText = 'சேவை நிலை பதிவு (ஒப்புகைச்சீட்டிலிருந்து தானாகச் சேரும்)';
+    }
+
+    function saveStatusManual() {
+        const name = document.getElementById('stName').value.trim();
+        const service = document.getElementById('stService').value.trim();
+        if (!name || !service) { alert('பெயர் மற்றும் சேவை பெயரை உள்ளிடவும்!'); return; }
+        const editId = parseInt(document.getElementById('stEditId').value);
+        const data = {
+            name: name,
+            mobile: document.getElementById('stMobile').value.trim(),
+            serviceType: document.getElementById('stType').value,
+            serviceName: service,
+            refNo: document.getElementById('stRef').value.trim(),
+            status: document.getElementById('stStatus').value,
+            note: document.getElementById('stNote').value.trim()
+        };
+        const ex = editId ? statusLogs.find(function (x) { return x.id === editId; }) : null;
+        if (ex) {
+            const changed = ex.status !== data.status;
+            Object.assign(ex, data);
+            if (changed) ex.doneAt = (data.status === 'done' || data.status === 'rejected') ? Date.now() : null;
+        } else {
+            const now = Date.now();
+            statusLogs.unshift(Object.assign({ id: now, ackId: null, itemIdx: 0, createdAt: now, doneAt: (data.status === 'done' || data.status === 'rejected') ? now : null }, data));
+        }
+        saveStatusLogs(); clearStatusForm(); renderStatus();
+        toast('✔ சேமிக்கப்பட்டது');
+    }
+
+    function deleteStatus(id) {
+        const r = statusLogs.find(function (x) { return x.id === id; }); if (!r) return;
+        if (!confirm('"' + r.name + '" - சேவை நிலைப் பதிவை நிரந்தரமாக நீக்கவா?')) return;
+        statusLogs = statusLogs.filter(function (x) { return x.id !== id; });
+        saveStatusLogs(); renderStatus();
+        toast('🗑️ பதிவு நீக்கப்பட்டது');
+    }
+
     // பதிவு நீக்கம்
     function deleteAck(i) {
         const rec = ackLogs[i]; if (!rec) return;
@@ -1054,6 +1308,15 @@
         displayAckCard(record);
         renderAckLogs();
         clearAckForm();
+
+        // தானியங்கி: சேவை நிலை பதிவு + கட்டண இரசீது படிவம்
+        syncStatusFromAck(record);
+        if (editIdx < 0) {
+            if (prefillPayFromAck(record, false)) toast('✔ சேவை நிலையில் பதிவானது; கட்டண இரசீது படிவத்தில் விவரங்கள் நிரப்பப்பட்டன', 5000);
+            else toast('✔ சேவை நிலையில் பதிவானது', 3000);
+        } else {
+            toast('✔ சேவை நிலைப் பதிவும் புதுப்பிக்கப்பட்டது', 3000);
+        }
     }
 
     function displayAckCard(rec) {
@@ -1109,6 +1372,7 @@
                 <td>${getAckItems(item).map(it => `<div class="svc-line">${esc(it.serviceType)}${it.serviceName ? ' - ' + esc(it.serviceName) : ''}</div>`).join('')}</td>
                 <td>${getAckItems(item).map(it => `<div class="svc-line"><b>${esc(it.refNo)}</b></div>`).join('')}</td>
                 <td>
+                    <button class="btn-tbl-action btn-tbl-paid" onclick="ackToPay(${originalIndex})">💰 கட்டணம்</button>
                     <button class="btn-tbl-action btn-tbl-edit" onclick="editAck(${originalIndex})">திருத்து</button>
                     <button class="btn-tbl-action btn-tbl-print" onclick="printAck(${originalIndex})">பிரிண்ட்</button>
                     <button class="btn-tbl-action btn-tbl-img" onclick="imgAck(${originalIndex})">🖼️ இமேஜ்</button>
