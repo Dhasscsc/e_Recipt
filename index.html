@@ -17,9 +17,13 @@
         }
 
         .container {
-            max-width: 900px;
+            max-width: 100%;
             margin: 0 auto;
         }
+        /* படிவம் + இரசீது டேப்கள் படிக்க வசதியான அகலத்தில்; வரலாறு & சேவை நிலை முழு அகலத்தில் */
+        #tab-ack, #tab-pay { max-width: 900px; margin: 0 auto; }
+        #tab-status .log-table, #tab-history .log-table { width: 100%; }
+        body { padding: 12px 16px; }
 
         /* டேப் (Tabs) ஸ்டைல் */
         .tab-buttons {
@@ -360,7 +364,7 @@
         .btn-tbl-img { background-color: #7c3aed; color: white; }
         .btn-tbl-wa { background-color: #16a34a; color: white; }
         #toast { position: fixed; left: 50%; bottom: 25px; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 14px; z-index: 9999; display: none; max-width: 90%; text-align: center; }
-        @media print { #toast { display: none !important; } }
+        @media print { #toast { display: none !important; } #tab-ack, #tab-pay { max-width: none !important; margin: 0 !important; } }
         /* Print Settings */
         @media print {
             body {
@@ -645,7 +649,7 @@
                 <thead>
                     <tr>
                         <th>#</th><th>பெயர் / செல்</th><th>சேவை</th><th>குறிப்பு எண்</th>
-                        <th>நிலை</th><th>குறிப்பு</th><th>பதிவு தேதி</th><th>செயல்பாடு</th>
+                        <th>நிலை</th><th>கட்டணம்</th><th>குறிப்பு</th><th>பதிவு தேதி</th><th>செயல்பாடு</th>
                     </tr>
                 </thead>
                 <tbody id="stBody"></tbody>
@@ -1018,7 +1022,12 @@
         const now = Date.now();
         const fresh = [];
         items.forEach(function (it, i) {
-            const ex = statusLogs.find(function (x) { return x.ackId === rec.id && x.itemIdx === i; });
+            let ex = statusLogs.find(function (x) { return x.ackId === rec.id && x.itemIdx === i; });
+            if (!ex) {
+                const k = stKey(rec.name, it.serviceType, it.serviceName);
+                ex = statusLogs.find(function (x) { return !x.ackId && x.payId && stKey(x.name, x.serviceType, x.serviceName) === k; });
+                if (ex) { ex.ackId = rec.id; ex.itemIdx = i; }
+            }
             if (ex) {
                 ex.name = rec.name; ex.mobile = rec.mobile;
                 ex.serviceType = it.serviceType; ex.serviceName = it.serviceName; ex.refNo = it.refNo;
@@ -1061,6 +1070,56 @@
         if (prefillPayFromAck(rec, true)) { switchTab('pay'); window.scrollTo({ top: 0, behavior: 'smooth' }); toast('💰 கட்டண இரசீது படிவத்தில் விவரங்கள் நிரப்பப்பட்டன — தொகையை உள்ளிடவும்', 5000); }
     }
 
+    // சேவை நிலைப் பதிவுடன் இணைந்த கட்டண விவரம்
+    function payCellHtml(r) {
+        if (!r.payId) return '<span style="color:#94a3b8;">—</span>';
+        const pay = payLogs.find(function (p) { return p.id === r.payId; });
+        if (!pay) return '<span style="color:#94a3b8;">—</span>';
+        const it = getPayItems(pay)[r.payItemIdx || 0];
+        const amt = it ? '₹ ' + fmtAmt(it.amount) : '';
+        const badge = pay.status === 'paid' ? '<span class="badge-paid">✔ செலுத்தப்பட்டது</span>' : '<span class="badge-due">நிலுவை</span>';
+        return '<b>' + amt + '</b><br>' + badge;
+    }
+
+    function stKey(name, type, service) {
+        return [String(name || '').trim().toLowerCase(), String(type || '').trim(), String(service || '').trim().toLowerCase()].join('|');
+    }
+
+    // கட்டண இரசீது சேமிக்கும்போது: ஒவ்வொரு வேலையும் சேவை நிலையில் இணைக்கப்படும் / புதிதாகச் சேரும்
+    function syncStatusFromPay(rec) {
+        const items = getPayItems(rec);
+        const now = Date.now();
+        const fresh = [];
+        items.forEach(function (it, i) {
+            let ex = statusLogs.find(function (x) { return x.payId === rec.id && x.payItemIdx === i; });
+            if (!ex) {
+                const k = stKey(rec.name, it.serviceType, it.serviceName);
+                ex = statusLogs.find(function (x) { return !x.payId && stKey(x.name, x.serviceType, x.serviceName) === k; });
+            }
+            if (ex) {
+                ex.payId = rec.id; ex.payItemIdx = i;
+                if (!ex.mobile && rec.mobile) ex.mobile = rec.mobile;
+            } else {
+                fresh.push({
+                    id: now + i, ackId: null, itemIdx: 0, payId: rec.id, payItemIdx: i,
+                    name: rec.name, mobile: rec.mobile,
+                    serviceType: it.serviceType, serviceName: it.serviceName, refNo: '',
+                    status: 'pending', note: '', createdAt: now, doneAt: null
+                });
+            }
+        });
+        statusLogs = fresh.concat(statusLogs);
+        // திருத்தத்தில் நீக்கப்பட்ட வரிகள்
+        statusLogs = statusLogs.filter(function (x) {
+            if (x.payId === rec.id && x.payItemIdx >= items.length) {
+                if (!x.ackId && !x.refNo) return false;   // கட்டணத்தால் மட்டும் உருவான பதிவு
+                x.payId = null; x.payItemIdx = null;
+            }
+            return true;
+        });
+        saveStatusLogs();
+    }
+
     function daysText(r) {
         const end = r.doneAt || Date.now();
         const d = Math.floor((end - r.createdAt) / 86400000);
@@ -1086,7 +1145,7 @@
             return [r.name, r.mobile, r.serviceType, r.serviceName, r.refNo, r.note].join(' ').toLowerCase().indexOf(q) !== -1;
         });
         const tbody = document.getElementById('stBody');
-        if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">பதிவுகள் எதுவுமில்லை</td></tr>'; return; }
+        if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">பதிவுகள் எதுவுமில்லை</td></tr>'; return; }
         tbody.innerHTML = rows.map(function (r, i) {
             const opts = STATUS_OPTS.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === r.status ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('');
             return '<tr>' +
@@ -1095,6 +1154,7 @@
                 '<td>' + esc(r.serviceType) + (r.serviceName ? ' - ' + esc(r.serviceName) : '') + '</td>' +
                 '<td><b>' + esc(r.refNo) + '</b></td>' +
                 '<td><select class="st-select s-' + r.status + '" onchange="setStatusValue(' + r.id + ', this.value)">' + opts + '</select></td>' +
+                '<td>' + payCellHtml(r) + '</td>' +
                 '<td><input class="st-note" type="text" value="' + esc(r.note) + '" placeholder="குறிப்பு" onchange="setStatusNote(' + r.id + ', this.value)"></td>' +
                 '<td>' + new Date(r.createdAt).toLocaleString('ta-IN') + '<br><span class="days-badge">🕒 ' + daysText(r) + '</span></td>' +
                 '<td>' +
@@ -1496,6 +1556,8 @@
         displayPayCard(record);
         renderPayLogs();
         clearPayForm();
+        syncStatusFromPay(record);
+        toast('✔ சேவை நிலையிலும் பதிவானது', 3000);
     }
 
     function displayPayCard(rec) {
