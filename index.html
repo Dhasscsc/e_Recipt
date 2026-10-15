@@ -365,6 +365,19 @@
         .btn-tbl-wa { background-color: #16a34a; color: white; }
         #toast { position: fixed; left: 50%; bottom: 25px; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 10px 18px; border-radius: 20px; font-size: 14px; z-index: 9999; display: none; max-width: 90%; text-align: center; }
         @media print { #toast { display: none !important; } #tab-ack, #tab-pay { max-width: none !important; margin: 0 !important; } }
+        .disc-row { display: flex; gap: 12px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+        .disc-row label { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-weight: 700; cursor: pointer; }
+        .disc-row input[type=checkbox] { width: 18px; height: 18px; }
+        .disc-row input[type=number] { width: 190px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-family: inherit; }
+        .disc-row input[type=number]:disabled { background: #f1f5f9; }
+        .ad-strip { margin-top: 14px; border: 2px solid #1e3a8a; border-radius: 6px; padding: 8px 10px; text-align: center; font-weight: 700; font-size: 15px; color: #1e3a8a; background: #eef2ff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .ad-strip:empty { display: none; }
+        .ad-ov { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 900; display: none; align-items: center; justify-content: center; padding: 14px; }
+        .ad-md { background: #fff; border-radius: 10px; max-width: 520px; width: 100%; padding: 18px; }
+        .ad-md h3 { margin: 0 0 8px; color: #1e3a8a; }
+        .ad-md textarea { width: 100%; min-height: 110px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: inherit; font-size: 15px; }
+        .ad-md .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+        @media print { .ad-ov { display: none !important; } }
         /* Print Settings */
         @media print {
             body {
@@ -399,11 +412,24 @@
 <body>
 
 <div id="toast"></div>
+<div class="ad-ov no-print" id="adModal">
+    <div class="ad-md">
+        <h3>📢 பில் கடைசி விளம்பர வாசகம்</h3>
+        <div style="font-size:13px;color:#475569;margin-bottom:8px;">ஒவ்வொரு வரியும் தனித்தனி விளம்பரமாக ஒப்புகைச்சீட்டு மற்றும் கட்டண இரசீதின் கடைசியில் வரும். எப்போது வேண்டுமானாலும் மாற்றலாம்.</div>
+        <textarea id="adText" placeholder="எ.கா: 🗳️ வாக்களிப்பது உங்கள் உரிமை, கடமை"></textarea>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:700;"><input type="checkbox" id="adOn" style="width:18px;height:18px;"> பில்லில் காட்டு</label>
+        <div class="row">
+            <button class="btn-s" onclick="document.getElementById('adModal').style.display='none'">✖ மூடு</button>
+            <button class="btn-img" onclick="saveAd()">💾 சேமி</button>
+        </div>
+    </div>
+</div>
 <div class="container">
     <div class="sync-bar">
         <span id="syncStatus">☁️ Sync அமைக்கப்படவில்லை</span>
         <button class="sync-btn" onclick="manualSync()" title="இப்போதே சின்க் செய்">🔄 இப்போதே சின்க்</button>
         <button class="sync-btn" onclick="promptGasUrl()" title="Sync URL அமை">⚙️ Sync அமை</button>
+        <button class="sync-btn" onclick="openAdEditor()" title="பில் கடைசி விளம்பர வாசகம்">📢 விளம்பர வாசகம்</button>
     </div>
 
     <!-- டேப் பட்டன்கள் -->
@@ -491,6 +517,7 @@
                 <div class="signature-box"><br><br>மைய பொறுப்பாளரின் கையொப்பம்</div>
                 <div class="signature-box"><br><br>விண்ணப்பதாரரின் கையொப்பம்</div>
             </div>
+            <div class="ad-strip" id="outAckAd"></div>
         </div>
 
         <div class="action-buttons">
@@ -533,7 +560,11 @@
                 <h3>வேலைகள் / சேவைகள் (ஒன்றுக்கு மேற்பட்டவை சேர்க்கலாம்)</h3>
                 <div id="payItemsWrap"></div>
                 <button type="button" class="btn-add-item" onclick="addPayItem()">➕ மேலும் ஒரு வேலை சேர்</button>
-                <div class="pay-total-box">மொத்த கட்டணம்: <span id="payTotalLive">₹ 0.00</span></div>
+                <div class="disc-row">
+                    <label><input type="checkbox" id="payDiscOn" onchange="onDiscToggle()"> டிஸ்கவுண்டு சேர்</label>
+                    <input type="number" id="payDiscAmt" min="0" step="any" placeholder="₹ டிஸ்கவுண்டு தொகை" disabled oninput="recalcPayTotal()">
+                </div>
+                <div class="pay-total-box"><div id="payDiscNote" style="font-size:13px;font-weight:normal;color:#475569;"></div>மொத்த கட்டணம்: <span id="payTotalLive">₹ 0.00</span></div>
             </div>
             <button class="btn-submit" onclick="savePayReceipt()">கட்டண இரசீது உருவாக்கி சேமி</button>
         </div>
@@ -578,6 +609,8 @@
                 </thead>
                 <tbody id="outPayItems"></tbody>
                 <tfoot>
+                    <tr id="outPaySubRow" style="display:none;"><td colspan="2" style="text-align:right;">கூட்டுத்தொகை</td><td id="outPaySub" style="text-align:right;">₹ 0.00</td></tr>
+                    <tr id="outPayDiscRow" style="display:none;"><td colspan="2" style="text-align:right;">டிஸ்கவுண்டு (−)</td><td id="outPayDisc" style="text-align:right;font-weight:bold;">− ₹ 0.00</td></tr>
                     <tr>
                         <td colspan="2" style="text-align:right;" id="outPayTotalLabel">செலுத்த வேண்டிய மொத்த கட்டணம்</td>
                         <td id="outPayAmount" class="amount-bold" style="text-align:right;">₹ 0.00</td>
@@ -607,6 +640,7 @@
                 <div class="signature-box"><br><br>மைய பொறுப்பாளரின் கையொப்பம்</div>
                 <div class="signature-box"><br><br>வாடிக்கையாளரின் கையொப்பம்</div>
             </div>
+            <div class="ad-strip" id="outPayAd"></div>
         </div>
 
         <div class="action-buttons">
@@ -832,6 +866,7 @@
 
     window.onload = function() {
         initStatusUi();
+        applyAd();
         setDefaultDateTime();
         addPayItem();
         addAckItem();
@@ -956,14 +991,16 @@
             return head + 'உங்கள் ஆவண ஒப்புகைச்சீட்டு:\n' + lines + '\nநன்றி!';
         }
         const items = getPayItems(rec);
-        const total = items.reduce(function (sum, it) { return sum + (parseFloat(it.amount) || 0); }, 0);
+        const disc = parseFloat(rec.discount) || 0;
+        const total = items.reduce(function (sum, it) { return sum + (parseFloat(it.amount) || 0); }, 0) - disc;
+        const discLine = disc > 0 ? '\nடிஸ்கவுண்டு: −₹' + fmtAmt(disc) : '';
         const lines = items.map(function (it, i) {
             return (i + 1) + '. ' + (it.serviceType || '') + (it.serviceName ? ' - ' + it.serviceName : '') + ' - ₹' + fmtAmt(it.amount);
         }).join('\n');
         if (rec.status === 'paid') {
-            return head + 'உங்கள் கட்டண இரசீது:\n' + lines + '\nமொத்தம்: ₹' + fmtAmt(total) + '\n✔ கட்டணம் நேரில் பெறப்பட்டது. நன்றி!';
+            return head + 'உங்கள் கட்டண இரசீது:\n' + lines + discLine + '\nமொத்தம்: ₹' + fmtAmt(total) + '\n✔ கட்டணம் நேரில் பெறப்பட்டது. நன்றி!';
         }
-        return head + 'உங்கள் சேவைக் கட்டண விவரம்:\n' + lines + '\nசெலுத்த வேண்டிய மொத்தம்: ₹' + fmtAmt(total) + '\nUPI: ' + UPI_ID + '\nநன்றி!';
+        return head + 'உங்கள் சேவைக் கட்டண விவரம்:\n' + lines + discLine + '\nசெலுத்த வேண்டிய மொத்தம்: ₹' + fmtAmt(total) + '\nUPI: ' + UPI_ID + '\nநன்றி!';
     }
 
     function openWaChat(rec, text) {
@@ -1380,6 +1417,7 @@
     }
 
     function displayAckCard(rec) {
+        applyAd();
         shownAckName = rec.name; shownAckRec = rec;
         document.getElementById('outAckName').innerText = rec.name;
         document.getElementById('outAckMobile').innerText = rec.mobile || '-';
@@ -1503,10 +1541,25 @@
         return items;
     }
 
+    function readDiscount() {
+        if (!document.getElementById('payDiscOn').checked) return 0;
+        return Math.max(0, parseFloat(document.getElementById('payDiscAmt').value) || 0);
+    }
+    function onDiscToggle() {
+        const on = document.getElementById('payDiscOn').checked;
+        const inp = document.getElementById('payDiscAmt');
+        inp.disabled = !on;
+        if (!on) inp.value = '';
+        else inp.focus();
+        recalcPayTotal();
+    }
     function recalcPayTotal() {
-        const total = readPayItems().reduce(function (sum, it) { return sum + it.amount; }, 0);
-        document.getElementById('payTotalLive').innerText = '₹ ' + fmtAmt(total);
-        return total;
+        const sub = readPayItems().reduce(function (sum, it) { return sum + it.amount; }, 0);
+        const disc = readDiscount();
+        const net = sub - disc;
+        document.getElementById('payTotalLive').innerText = '₹ ' + fmtAmt(net);
+        document.getElementById('payDiscNote').innerText = disc > 0 ? 'கூட்டுத்தொகை ₹ ' + fmtAmt(sub) + '  −  டிஸ்கவுண்டு ₹ ' + fmtAmt(disc) : '';
+        return net;
     }
 
     function updatePayQr(amount) {
@@ -1524,9 +1577,13 @@
         const dateTimeVal = document.getElementById('payDateTime').value;
         const editIdx = parseInt(document.getElementById('payEditIndex').value);
         const items = readPayItems();
-        const total = items.reduce(function (sum, it) { return sum + it.amount; }, 0);
+        const subtotal = items.reduce(function (sum, it) { return sum + it.amount; }, 0);
+        const discount = readDiscount();
+        const total = subtotal - discount;
 
-        if(!name || items.length === 0 || total <= 0) { alert('பெயர் மற்றும் குறைந்தது ஒரு சேவையின் கட்டணத் தொகையை உள்ளிடவும்!'); return; }
+        if(!name || items.length === 0 || subtotal <= 0) { alert('பெயர் மற்றும் குறைந்தது ஒரு சேவையின் கட்டணத் தொகையை உள்ளிடவும்!'); return; }
+        if(document.getElementById('payDiscOn').checked && discount <= 0) { alert('டிஸ்கவுண்டு தொகையை உள்ளிடவும் அல்லது டிக்கை நீக்கவும்!'); return; }
+        if(discount >= subtotal) { alert('டிஸ்கவுண்டு மொத்தத் தொகையை விட குறைவாக இருக்க வேண்டும்!'); return; }
 
         const formattedDate = dateTimeVal ? new Date(dateTimeVal).toLocaleString('ta-IN') : '-';
         const rawDate = dateTimeVal ? dateTimeVal.split('T')[0] : '';
@@ -1538,6 +1595,8 @@
             name, mobile,
             items: items,
             amount: total,
+            subtotal: subtotal,
+            discount: discount,
             status: document.getElementById('payStatus').value,
             // பழைய வடிவத்துடன் பொருந்துவதற்காக (Sheet/Sync)
             serviceType: items[0].serviceType,
@@ -1563,7 +1622,14 @@
     function displayPayCard(rec) {
         shownPayName = rec.name; shownPayRec = rec;
         const items = getPayItems(rec);
-        const total = items.reduce(function (sum, it) { return sum + (parseFloat(it.amount) || 0); }, 0);
+        const sub = items.reduce(function (sum, it) { return sum + (parseFloat(it.amount) || 0); }, 0);
+        const disc = parseFloat(rec.discount) || 0;
+        const total = sub - disc;
+        document.getElementById('outPaySubRow').style.display = disc > 0 ? '' : 'none';
+        document.getElementById('outPayDiscRow').style.display = disc > 0 ? '' : 'none';
+        document.getElementById('outPaySub').innerText = '₹ ' + fmtAmt(sub);
+        document.getElementById('outPayDisc').innerText = '− ₹ ' + fmtAmt(disc);
+        applyAd();
         document.getElementById('outPayName').innerText = rec.name;
         document.getElementById('outPayMobile').innerText = rec.mobile || '-';
         document.getElementById('outPayDateTime').innerText = rec.dateTime;
@@ -1601,6 +1667,11 @@
         document.getElementById('payItemsWrap').innerHTML = '';
         getPayItems(item).forEach(function (it) { addPayItem(it); });
         document.getElementById('payStatus').value = item.status === 'paid' ? 'paid' : 'due';
+        const dsc = parseFloat(item.discount) || 0;
+        document.getElementById('payDiscOn').checked = dsc > 0;
+        document.getElementById('payDiscAmt').disabled = !(dsc > 0);
+        document.getElementById('payDiscAmt').value = dsc > 0 ? dsc : '';
+        recalcPayTotal();
         document.getElementById('payEditIndex').value = index;
         document.getElementById('payFormTitle').innerText = "கட்டண இரசீது விவரங்களை திருத்துதல்";
         switchTab('pay');
@@ -1635,7 +1706,7 @@
                 <td><b>${item.name}</b></td>
                 <td>${item.mobile}</td>
                 <td>${getPayItems(item).map(it => `<div class="svc-line">${esc(it.serviceType)}${it.serviceName ? ' - ' + esc(it.serviceName) : ''} <small>(₹ ${fmtAmt(it.amount)})</small></div>`).join('')}</td>
-                <td><b style="color:#b91c1c;">₹ ${fmtAmt(item.amount)}</b></td>
+                <td><b style="color:#b91c1c;">₹ ${fmtAmt(item.amount)}</b>${item.discount > 0 ? `<div style="font-size:11px;color:#15803d;">டிஸ்கவுண்டு −₹ ${fmtAmt(item.discount)}</div>` : ''}</td>
                 <td>${item.status === 'paid' ? '<span class="badge-paid">✔ செலுத்தப்பட்டது</span>' : '<span class="badge-due">நிலுவை</span>'}</td>
                 <td>
                     ${item.status === 'paid' ? '' : `<button class="btn-tbl-action btn-tbl-paid" onclick="markPayPaid(${originalIndex})">செலுத்தினார்</button>`}
@@ -1656,7 +1727,36 @@
         document.getElementById('payItemsWrap').innerHTML = '';
         addPayItem();
         document.getElementById('payStatus').value = 'due';
+        document.getElementById('payDiscOn').checked = false;
+        document.getElementById('payDiscAmt').value = '';
+        document.getElementById('payDiscAmt').disabled = true;
+        recalcPayTotal();
         setDefaultDateTime();
+    }
+
+    /* ---------- பில் கடைசி விளம்பர வாசகம் ---------- */
+    const AD_KEY = 'dhass_ad_cfg';
+    const AD_DEFAULT = { on: true, text: '🗳️ வாக்களிப்பது உங்கள் உரிமை, கடமை' };
+    function getAd() {
+        try { const j = JSON.parse(localStorage.getItem(AD_KEY)); return (j && typeof j.text === 'string') ? j : AD_DEFAULT; }
+        catch (e) { return AD_DEFAULT; }
+    }
+    function applyAd() {
+        const a = getAd();
+        const html = a.on ? a.text.split('\n').map(function (t) { return t.trim(); }).filter(Boolean).map(function (t) { return '<div>' + esc(t) + '</div>'; }).join('') : '';
+        ['outAckAd', 'outPayAd'].forEach(function (id) { const e = document.getElementById(id); if (e) e.innerHTML = html; });
+    }
+    function openAdEditor() {
+        const a = getAd();
+        document.getElementById('adText').value = a.text;
+        document.getElementById('adOn').checked = !!a.on;
+        document.getElementById('adModal').style.display = 'flex';
+    }
+    function saveAd() {
+        localStorage.setItem(AD_KEY, JSON.stringify({ on: document.getElementById('adOn').checked, text: document.getElementById('adText').value }));
+        applyAd();
+        document.getElementById('adModal').style.display = 'none';
+        toast('✔ விளம்பர வாசகம் சேமிக்கப்பட்டது');
     }
 </script>
 
