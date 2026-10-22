@@ -1745,6 +1745,7 @@
         const c = document.createElement('canvas'); c.width = 512; c.height = 512;
         const x = c.getContext('2d');
         x.clearRect(0, 0, 512, 512);
+        x.fillStyle = '#ecfdf5'; x.fillRect(0, 0, 512, 512);
         x.beginPath(); x.arc(256, 256, 244, 0, Math.PI * 2);
         x.fillStyle = '#ffffff'; x.fill();
         x.lineWidth = 14; x.strokeStyle = '#16a34a'; x.stroke();
@@ -1759,9 +1760,7 @@
         line(nm.length > 18 ? nm.slice(0, 17) + '…' : nm, 337, 30, '#1e3a8a', 340);
         line('நன்றி! 🙏', 392, 44, '#d97706', 300);
         line('தாஸ் பொது சேவை மையம்', 443, 22, '#475569', 300);
-        let blob = await new Promise(function (r) { c.toBlob(r, 'image/webp', 0.92); });
-        if (!blob) blob = await new Promise(function (r) { c.toBlob(r, 'image/png'); });
-        return blob;
+        return await new Promise(function (r) { c.toBlob(r, 'image/png'); });
     }
 
     async function sendSticker(rec) {
@@ -1770,15 +1769,14 @@
         toast('ஸ்டிக்கர் தயாராகிறது...', 5000);
         const blob = await makeSticker(rec);
         if (!blob) { alert('ஸ்டிக்கர் உருவாக்க முடியவில்லை.'); return; }
-        const ext = blob.type === 'image/webp' ? 'webp' : 'png';
-        const fileName = (safeFileName(rec.name) || 'sticker') + ' - நன்றி.' + ext;
-        const file = new File([blob], fileName, { type: blob.type });
+        const digits = String(rec.mobile || '').replace(/\D/g, '').slice(-10);
+        const file = new File([blob], 'thanks_' + (digits || Date.now()) + '.png', { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             try { await navigator.share({ files: [file] }); return; }
             catch (e) { if (e && e.name === 'AbortError') return; }
         }
-        saveBlob(blob, fileName);
-        toast('ஸ்டிக்கர் டவுண்லோடு ஆனது — வாட்ஸ்அப்பில் 📎 → Sticker (ஸ்டிக்கர்) மூலம் அனுப்பவும்', 8000);
+        saveBlob(blob, (safeFileName(rec.name) || 'thanks') + ' - நன்றி.png');
+        toast('படம் டவுண்லோடு ஆனது — வாட்ஸ்அப்பில் 📎 → Photos (படம்) மூலம் இணைத்து அனுப்பவும்', 8000);
         window.open('https://wa.me/' + waNumber(rec.mobile), '_blank');
     }
 
