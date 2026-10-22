@@ -648,6 +648,7 @@
             <button class="btn-img" onclick="downloadReceiptImage('pay')">🖼️ இமேஜ் டவுண்லோடு</button>
             <button class="btn-wa" onclick="shareReceiptWhatsApp('pay')">📲 இமேஜ் + வாட்ஸ்அப்</button>
             <button class="btn-wa-text" onclick="sendReceiptWhatsAppText('pay')">💬 வாட்ஸ்அப் செய்தி</button>
+            <button class="btn-img" style="background:#d97706" onclick="sendSticker(shownPayRec)">🎉 நன்றி ஸ்டிக்கர்</button>
         </div>
 
     </div>
@@ -1709,7 +1710,7 @@
                 <td><b style="color:#b91c1c;">₹ ${fmtAmt(item.amount)}</b>${item.discount > 0 ? `<div style="font-size:11px;color:#15803d;">டிஸ்கவுண்டு −₹ ${fmtAmt(item.discount)}</div>` : ''}</td>
                 <td>${item.status === 'paid' ? '<span class="badge-paid">✔ செலுத்தப்பட்டது</span>' : '<span class="badge-due">நிலுவை</span>'}</td>
                 <td>
-                    ${item.status === 'paid' ? '' : `<button class="btn-tbl-action btn-tbl-paid" onclick="markPayPaid(${originalIndex})">செலுத்தினார்</button>`}
+                    ${item.status === 'paid' ? `<button class="btn-tbl-action" style="background:#d97706;color:#fff;" onclick="sendSticker(payLogs[${originalIndex}])">🎉 ஸ்டிக்கர்</button>` : `<button class="btn-tbl-action btn-tbl-paid" onclick="markPayPaid(${originalIndex})">செலுத்தினார்</button>`}
                     <button class="btn-tbl-action btn-tbl-edit" onclick="editPay(${originalIndex})">திருத்து</button>
                     <button class="btn-tbl-action btn-tbl-print" onclick="printPay(${originalIndex})">பிரிண்ட்</button>
                     <button class="btn-tbl-action btn-tbl-img" onclick="imgPay(${originalIndex})">🖼️ இமேஜ்</button>
@@ -1732,6 +1733,53 @@
         document.getElementById('payDiscAmt').disabled = true;
         recalcPayTotal();
         setDefaultDateTime();
+    }
+
+
+    /* ---------- 🎉 நன்றி ஸ்டிக்கர் (512×512 WebP) ---------- */
+    async function makeSticker(rec) {
+        const sub = getPayItems(rec).reduce(function (a, it) { return a + (parseFloat(it.amount) || 0); }, 0);
+        const amt = sub - (parseFloat(rec.discount) || 0);
+        const F = '"Mukta Malar","Latha",sans-serif';
+        try { if (document.fonts && document.fonts.load) await document.fonts.load('700 30px "Mukta Malar"'); } catch (e) {}
+        const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+        const x = c.getContext('2d');
+        x.clearRect(0, 0, 512, 512);
+        x.beginPath(); x.arc(256, 256, 244, 0, Math.PI * 2);
+        x.fillStyle = '#ffffff'; x.fill();
+        x.lineWidth = 14; x.strokeStyle = '#16a34a'; x.stroke();
+        x.beginPath(); x.arc(256, 118, 58, 0, Math.PI * 2); x.fillStyle = '#16a34a'; x.fill();
+        x.beginPath(); x.moveTo(228, 120); x.lineTo(250, 144); x.lineTo(288, 96);
+        x.lineWidth = 16; x.lineCap = 'round'; x.lineJoin = 'round'; x.strokeStyle = '#ffffff'; x.stroke();
+        x.textAlign = 'center'; x.textBaseline = 'middle';
+        function line(t, y, size, color, maxW) { x.font = '700 ' + size + 'px ' + F; x.fillStyle = color; x.fillText(t, 256, y, maxW); }
+        line('கட்டணம் பெறப்பட்டது', 215, 34, '#166534', 400);
+        line('₹ ' + fmtAmt(amt), 280, 64, '#b91c1c', 360);
+        const nm = String(rec.name || '');
+        line(nm.length > 18 ? nm.slice(0, 17) + '…' : nm, 337, 30, '#1e3a8a', 340);
+        line('நன்றி! 🙏', 392, 44, '#d97706', 300);
+        line('தாஸ் பொது சேவை மையம்', 443, 22, '#475569', 300);
+        let blob = await new Promise(function (r) { c.toBlob(r, 'image/webp', 0.92); });
+        if (!blob) blob = await new Promise(function (r) { c.toBlob(r, 'image/png'); });
+        return blob;
+    }
+
+    async function sendSticker(rec) {
+        if (!rec) { alert('முதலில் கட்டண இரசீதை உருவாக்கவும் (அல்லது வரலாற்றிலிருந்து தேர்ந்தெடுக்கவும்)!'); return; }
+        if (rec.status !== 'paid') { alert('கட்டணம் பெறப்பட்ட பின் மட்டுமே ஸ்டிக்கர் அனுப்ப முடியும். முதலில் "செலுத்தினார்" என்று குறிக்கவும்.'); return; }
+        toast('ஸ்டிக்கர் தயாராகிறது...', 5000);
+        const blob = await makeSticker(rec);
+        if (!blob) { alert('ஸ்டிக்கர் உருவாக்க முடியவில்லை.'); return; }
+        const ext = blob.type === 'image/webp' ? 'webp' : 'png';
+        const fileName = (safeFileName(rec.name) || 'sticker') + ' - நன்றி.' + ext;
+        const file = new File([blob], fileName, { type: blob.type });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try { await navigator.share({ files: [file] }); return; }
+            catch (e) { if (e && e.name === 'AbortError') return; }
+        }
+        saveBlob(blob, fileName);
+        toast('ஸ்டிக்கர் டவுண்லோடு ஆனது — வாட்ஸ்அப்பில் 📎 → Sticker (ஸ்டிக்கர்) மூலம் அனுப்பவும்', 8000);
+        window.open('https://wa.me/' + waNumber(rec.mobile), '_blank');
     }
 
     /* ---------- பில் கடைசி விளம்பர வாசகம் ---------- */
