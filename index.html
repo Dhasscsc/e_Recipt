@@ -675,9 +675,9 @@
 
         <div class="history-section" style="margin-top:0;">
             <h2>சேவை நிலை பட்டியல்</h2>
-            <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="sync-btn" style="background:#1e3a8a;color:#fff;" onclick="publishPublicStatus(true)" title="வாடிக்கையாளர் நிலைப் பக்கத்தை இப்போதே புதுப்பி">🌐 வாடிக்கையாளர் பக்கம் புதுப்பி</button>
-                <button class="sync-btn" onclick="setupPublicStatus()" title="வாடிக்கையாளர் பக்க URL & சாவி">⚙️ நிலைப் பக்க அமைப்பு</button>
+            <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <span id="t2State" style="font-size:13px;color:#475569;font-weight:600;">☁️ டூல் 2 இணைப்பு தயார்</span>
+                <button class="sync-btn" onclick="t2SendBacklog()" title="இதுவரை உள்ள பழைய பதிவுகளை டூல் 2-க்கு அனுப்பு">📤 பழைய பதிவுகளை டூல் 2-க்கு அனுப்பு</button>
             </div>
             <div class="st-filter">
                 <input type="text" id="stSearch" placeholder="🔍 பெயர் / செல் / சேவை / குறிப்பு எண் மூலம் தேடுக..." oninput="renderStatus()">
@@ -764,9 +764,8 @@
     const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbz-4UnBhL6MC_GoAbl_xhB_u6EZQZz0bBqxNet6KOKw6DxiEBy-lSxSkQ6PKgNTwscW2A/exec';
     const GAS_URL_KEY = 'dhassReceiptGasSyncUrl';
     const SYNC_META_PREFIX = '__syncMeta_';
-    const PUB_URL_KEY = 'dhassStatusPubUrl';
-    const PUB_KEY_KEY = 'dhassStatusPubKey';
-    const SYNC_EXCLUDE_KEYS = [GAS_URL_KEY, PUB_URL_KEY, PUB_KEY_KEY];
+    const T2_SINCE_KEY = 'dhassT2Since';
+    const SYNC_EXCLUDE_KEYS = [GAS_URL_KEY, T2_SINCE_KEY];
     let gasUrl = localStorage.getItem(GAS_URL_KEY) || DEFAULT_GAS_URL;
     let syncPushTimers = {};
 
@@ -1052,50 +1051,95 @@
 
     function saveStatusLogs() {
         localStorage.setItem('dhass_status_logs', JSON.stringify(statusLogs));
-        schedulePublicStatus();
+        scheduleT2Sync();
     }
 
-    /* ---------- வாடிக்கையாளர் சேவை நிலைப் பக்கத்திற்கு (status.html) வெளியிடு ----------
-       குறிப்பு எண் உள்ள பதிவுகளின் சேவை, நிலை, குறிப்பு, தேதி மட்டுமே அனுப்பப்படும்.
-       பெயர், செல், கட்டணம் போன்றவை எதுவும் செல்லாது. தனி Apps Script (StatusCode.gs) பயன்படுத்தப்படுகிறது. */
-    let pubTimer = null;
-    function schedulePublicStatus() {
-        clearTimeout(pubTimer);
-        pubTimer = setTimeout(publishPublicStatus, 1500);
+    /* ---------- டூல் 2 (கண்காணிப்பு) உடன் தானியங்கி இணைப்பு ----------
+       இங்கு உருவாகும் ஒவ்வொரு சேவை நிலைப் பதிவும் டூல் 2-இன் Sheet-க்கு தானாகப் போகும்.
+       ஏற்கனவே டூல் 2-இல் அதே குறிப்பு எண் / பெயர்+செல்+சேவை இருந்தால் புதிதாக உருவாக்காமல் இணைக்கப்படும். */
+    const T2_URL = 'https://script.google.com/macros/s/AKfycbxEenE0WzOFwn5Pniu8hZtyoPUdYSTVvSIUIxNwTYTPtmOhDkis9TE2wkrzdMaZYC81tQ/exec';
+    const T2_STATUS = { pending: 'Pending', progress: 'In Progress', done: 'Completed', rejected: 'Rejected' };
+    let T2_SINCE = parseInt(localStorage.getItem(T2_SINCE_KEY) || '0', 10);
+    if (!T2_SINCE) { T2_SINCE = Date.now(); rawSetItem.call(localStorage, T2_SINCE_KEY, String(T2_SINCE)); }
+    let t2Busy = false, t2Timer = null;
+
+    function t2Svc(r) { return (r.serviceType || '') + (r.serviceName ? (r.serviceType ? ' - ' : '') + r.serviceName : ''); }
+    function t2Ident(r) { return { name: r.name || '', mobile: r.mobile || '', serviceName: t2Svc(r), refNo: r.refNo || '' }; }
+    function t2Mark(r, fields) { if (r && r.t2Id) r.t2Patch = Object.assign(r.t2Patch || {}, fields); }
+    function t2IsPending(r) { return !r.t2Id && (r.t2Force || (r.createdAt || 0) >= T2_SINCE); }
+    function t2Norm(s) { return String(s || '').toUpperCase().replace(/[\s\-_\/]/g, ''); }
+    function t2Msg(text) { const el = document.getElementById('t2State'); if (el) el.textContent = text; }
+
+    async function t2Call(body) {
+        const res = await fetch(T2_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+        const d = await res.json();
+        if (!d.success) throw new Error(d.error || 'unknown');
+        return d;
     }
-    function publishPublicStatus(manual) {
-        const url = localStorage.getItem(PUB_URL_KEY);
-        const key = localStorage.getItem(PUB_KEY_KEY);
-        if (!url || !key) { if (manual) setupPublicStatus(); return; }
-        const items = statusLogs.filter(function (r) { return r.refNo && String(r.refNo).trim(); }).map(function (r) {
-            return {
-                ref: String(r.refNo).trim(),
-                serviceType: r.serviceType || '',
-                serviceName: r.serviceName || '',
-                status: r.status,
-                note: r.note || '',
-                createdAt: r.createdAt || 0,
-                updatedAt: r.doneAt || r.createdAt || 0
-            };
-        });
-        fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ key: key, items: items })
-        }).then(function (res) { return res.json(); }).then(function (d) {
-            if (d && d.ok) { if (manual) toast('🌐 வாடிக்கையாளர் பக்கம் புதுப்பிக்கப்பட்டது (' + d.count + ')'); }
-            else toast('⚠️ வெளியீடு தோல்வி: ' + ((d && d.error) || 'தெரியாத பிழை'), 5000);
-        }).catch(function () { if (manual) toast('⚠️ வெளியீடு பிழை - இணையம் சரிபார்க்கவும்', 5000); });
+    function scheduleT2Sync() {
+        clearTimeout(t2Timer);
+        t2Timer = setTimeout(runT2Sync, 1500);
     }
-    function setupPublicStatus() {
-        const u = prompt('StatusCode.gs Web App URL-ஐ ஒட்டவும்:', localStorage.getItem(PUB_URL_KEY) || '');
-        if (u === null) return;
-        const k = prompt('நீங்கள் StatusCode.gs-இல் வைத்த ரகசிய சாவியை (ADMIN_KEY) உள்ளிடவும்:', localStorage.getItem(PUB_KEY_KEY) || '');
-        if (k === null) return;
-        localStorage.setItem(PUB_URL_KEY, u.trim());
-        localStorage.setItem(PUB_KEY_KEY, k.trim());
-        publishPublicStatus(true);
+    function t2SendBacklog() {
+        const n = statusLogs.filter(function (r) { return !r.t2Id; }).length;
+        if (!n) { toast('அனைத்து பதிவுகளும் ஏற்கனவே டூல் 2-உடன் இணைந்துள்ளன'); return; }
+        if (!confirm(n + ' பழைய பதிவுகளை டூல் 2-க்கு அனுப்பவா?\n(டூல் 2-இல் ஏற்கனவே உள்ளவை மீண்டும் உருவாக்கப்படாது)')) return;
+        statusLogs.forEach(function (r) { if (!r.t2Id) r.t2Force = true; });
+        saveStatusLogs();
     }
+    async function runT2Sync() {
+        if (t2Busy) return;
+        const pending = statusLogs.filter(t2IsPending);
+        const patches = statusLogs.filter(function (r) { return r.t2Id && r.t2Patch && Object.keys(r.t2Patch).length; });
+        if (!pending.length && !patches.length) return;
+        t2Busy = true;
+        let created = 0, linked = 0, updated = 0, failed = 0;
+        try {
+            t2Msg('🔄 டூல் 2-க்கு அனுப்பப்படுகிறது...');
+            if (pending.length) {
+                let remote = [];
+                try {
+                    const res = await fetch(T2_URL + '?action=getAllRecords');
+                    const d = await res.json();
+                    if (!d.success) throw new Error(d.error || 'unknown');
+                    remote = d.records || [];
+                } catch (e) { throw new Error('டூல் 2 தரவைப் படிக்க முடியவில்லை'); }
+                const byRef = {}, byKey = {};
+                remote.forEach(function (x) {
+                    if (x.refNo) byRef[t2Norm(x.refNo)] = x;
+                    byKey[t2Norm(x.name) + '|' + String(x.mobile || '').trim() + '|' + t2Norm(x.serviceName)] = x;
+                });
+                for (const r of pending) {
+                    try {
+                        const hit = (r.refNo && byRef[t2Norm(r.refNo)]) || byKey[t2Norm(r.name) + '|' + String(r.mobile || '').trim() + '|' + t2Norm(t2Svc(r))];
+                        if (hit) { r.t2Id = hit.id; r.t2Force = false; linked++; continue; }
+                        const rec = Object.assign(t2Ident(r), { status: T2_STATUS[r.status] || 'Pending', note: r.note || '' });
+                        const d = await t2Call({ action: 'createRecord', record: rec });
+                        r.t2Id = d.record.id; r.t2Force = false; created++;
+                        if (r.refNo) byRef[t2Norm(r.refNo)] = d.record;
+                    } catch (e) { failed++; console.error('t2 create failed', e); }
+                }
+            }
+            for (const r of patches) {
+                try {
+                    const sent = JSON.stringify(r.t2Patch);
+                    await t2Call({ action: 'updateRecord', record: Object.assign({ id: r.t2Id }, r.t2Patch) });
+                    if (JSON.stringify(r.t2Patch) === sent) delete r.t2Patch;
+                    updated++;
+                } catch (e) { failed++; console.error('t2 update failed', e); }
+            }
+            // t2Id-ஐ சேமி (மீண்டும் t2 sync தூண்டாமல்)
+            localStorage.setItem('dhass_status_logs', JSON.stringify(statusLogs));
+            if (failed) t2Msg('⚠️ டூல் 2: ' + failed + ' பதிவு அனுப்ப முடியவில்லை - தானாக மீண்டும் முயலும்');
+            else t2Msg('✅ டூல் 2 இணைப்பு (' + new Date().toLocaleTimeString('ta-IN') + ')');
+            if (created || linked) toast('📤 டூல் 2: ' + created + ' புதியது' + (linked ? ', ' + linked + ' இணைக்கப்பட்டது' : ''));
+        } catch (e) {
+            t2Msg('⚠️ ' + (e.message || 'டூல் 2 இணைப்பு பிழை') + ' - தானாக மீண்டும் முயலும்');
+        }
+        t2Busy = false;
+    }
+    setInterval(runT2Sync, 60000);
+    setTimeout(runT2Sync, 4000);
 
     function initStatusUi() {
         document.getElementById('stType').innerHTML = SERVICE_TYPES.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('');
@@ -1116,8 +1160,10 @@
                 if (ex) { ex.ackId = rec.id; ex.itemIdx = i; }
             }
             if (ex) {
+                const t2Before = JSON.stringify(t2Ident(ex));
                 ex.name = rec.name; ex.mobile = rec.mobile;
                 ex.serviceType = it.serviceType; ex.serviceName = it.serviceName; ex.refNo = it.refNo;
+                if (JSON.stringify(t2Ident(ex)) !== t2Before) t2Mark(ex, t2Ident(ex));
             } else {
                 fresh.push({
                     id: now + i, ackId: rec.id, itemIdx: i,
@@ -1258,12 +1304,13 @@
         const r = statusLogs.find(function (x) { return x.id === id; }); if (!r) return;
         r.status = v;
         r.doneAt = (v === 'done' || v === 'rejected') ? Date.now() : null;
+        t2Mark(r, { status: T2_STATUS[v] || 'Pending' });
         saveStatusLogs(); renderStatus();
     }
 
     function setStatusNote(id, v) {
         const r = statusLogs.find(function (x) { return x.id === id; }); if (!r) return;
-        r.note = v.trim(); saveStatusLogs();
+        r.note = v.trim(); t2Mark(r, { note: r.note }); saveStatusLogs();
     }
 
     function waStatus(id) {
@@ -1317,6 +1364,7 @@
             const changed = ex.status !== data.status;
             Object.assign(ex, data);
             if (changed) ex.doneAt = (data.status === 'done' || data.status === 'rejected') ? Date.now() : null;
+            t2Mark(ex, Object.assign(t2Ident(ex), { status: T2_STATUS[ex.status] || 'Pending', note: ex.note || '' }));
         } else {
             const now = Date.now();
             statusLogs.unshift(Object.assign({ id: now, ackId: null, itemIdx: 0, createdAt: now, doneAt: (data.status === 'done' || data.status === 'rejected') ? now : null }, data));
