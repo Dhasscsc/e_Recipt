@@ -675,6 +675,10 @@
 
         <div class="history-section" style="margin-top:0;">
             <h2>சேவை நிலை பட்டியல்</h2>
+            <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="sync-btn" style="background:#1e3a8a;color:#fff;" onclick="publishPublicStatus(true)" title="வாடிக்கையாளர் நிலைப் பக்கத்தை இப்போதே புதுப்பி">🌐 வாடிக்கையாளர் பக்கம் புதுப்பி</button>
+                <button class="sync-btn" onclick="setupPublicStatus()" title="வாடிக்கையாளர் பக்க URL & சாவி">⚙️ நிலைப் பக்க அமைப்பு</button>
+            </div>
             <div class="st-filter">
                 <input type="text" id="stSearch" placeholder="🔍 பெயர் / செல் / சேவை / குறிப்பு எண் மூலம் தேடுக..." oninput="renderStatus()">
                 <select id="stFilter" onchange="renderStatus()"></select>
@@ -760,7 +764,9 @@
     const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbz-4UnBhL6MC_GoAbl_xhB_u6EZQZz0bBqxNet6KOKw6DxiEBy-lSxSkQ6PKgNTwscW2A/exec';
     const GAS_URL_KEY = 'dhassReceiptGasSyncUrl';
     const SYNC_META_PREFIX = '__syncMeta_';
-    const SYNC_EXCLUDE_KEYS = [GAS_URL_KEY];
+    const PUB_URL_KEY = 'dhassStatusPubUrl';
+    const PUB_KEY_KEY = 'dhassStatusPubKey';
+    const SYNC_EXCLUDE_KEYS = [GAS_URL_KEY, PUB_URL_KEY, PUB_KEY_KEY];
     let gasUrl = localStorage.getItem(GAS_URL_KEY) || DEFAULT_GAS_URL;
     let syncPushTimers = {};
 
@@ -1046,6 +1052,49 @@
 
     function saveStatusLogs() {
         localStorage.setItem('dhass_status_logs', JSON.stringify(statusLogs));
+        schedulePublicStatus();
+    }
+
+    /* ---------- வாடிக்கையாளர் சேவை நிலைப் பக்கத்திற்கு (status.html) வெளியிடு ----------
+       குறிப்பு எண் உள்ள பதிவுகளின் சேவை, நிலை, குறிப்பு, தேதி மட்டுமே அனுப்பப்படும்.
+       பெயர், செல், கட்டணம் போன்றவை எதுவும் செல்லாது. தனி Apps Script (StatusCode.gs) பயன்படுத்தப்படுகிறது. */
+    let pubTimer = null;
+    function schedulePublicStatus() {
+        clearTimeout(pubTimer);
+        pubTimer = setTimeout(publishPublicStatus, 1500);
+    }
+    function publishPublicStatus(manual) {
+        const url = localStorage.getItem(PUB_URL_KEY);
+        const key = localStorage.getItem(PUB_KEY_KEY);
+        if (!url || !key) { if (manual) setupPublicStatus(); return; }
+        const items = statusLogs.filter(function (r) { return r.refNo && String(r.refNo).trim(); }).map(function (r) {
+            return {
+                ref: String(r.refNo).trim(),
+                serviceType: r.serviceType || '',
+                serviceName: r.serviceName || '',
+                status: r.status,
+                note: r.note || '',
+                createdAt: r.createdAt || 0,
+                updatedAt: r.doneAt || r.createdAt || 0
+            };
+        });
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ key: key, items: items })
+        }).then(function (res) { return res.json(); }).then(function (d) {
+            if (d && d.ok) { if (manual) toast('🌐 வாடிக்கையாளர் பக்கம் புதுப்பிக்கப்பட்டது (' + d.count + ')'); }
+            else toast('⚠️ வெளியீடு தோல்வி: ' + ((d && d.error) || 'தெரியாத பிழை'), 5000);
+        }).catch(function () { if (manual) toast('⚠️ வெளியீடு பிழை - இணையம் சரிபார்க்கவும்', 5000); });
+    }
+    function setupPublicStatus() {
+        const u = prompt('StatusCode.gs Web App URL-ஐ ஒட்டவும்:', localStorage.getItem(PUB_URL_KEY) || '');
+        if (u === null) return;
+        const k = prompt('நீங்கள் StatusCode.gs-இல் வைத்த ரகசிய சாவியை (ADMIN_KEY) உள்ளிடவும்:', localStorage.getItem(PUB_KEY_KEY) || '');
+        if (k === null) return;
+        localStorage.setItem(PUB_URL_KEY, u.trim());
+        localStorage.setItem(PUB_KEY_KEY, k.trim());
+        publishPublicStatus(true);
     }
 
     function initStatusUi() {
